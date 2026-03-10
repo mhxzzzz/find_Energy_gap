@@ -1,0 +1,2 @@
+# find_Energy_gap
+从vasp计算的结果中提取材料的计算带隙
