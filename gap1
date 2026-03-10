@@ -1,0 +1,57 @@
+#!/bin/sh
+
+nbands=`grep "NBANDS" OUTCAR|cut -d '=' -f 4`     #  在OUTCAR中找到NBANDS
+nbands=$(echo "$nbands + 1" | bc)                   
+nkpt=`awk '/NKPTS/ {print $4}' OUTCAR`      # 找出k点数量
+
+ispin=`grep "ISPIN" OUTCAR|awk '{print $3}'`
+
+
+
+bcl1=$(grep -A$nbands " k-point     1" OUTCAR |head -$(echo "$nbands + 1" | bc) | sed '1,2d' | awk ' $3 < 0.1 {print $1} ' | head -n1 ) # bcl1=humo 导带底  awk $3 < 0.1 是为了筛选电子占据数为零时的情况
+bvh1=$(echo "$bcl1 - 1" | bc )       #  bvh=homo价带顶
+
+
+e1s1=`grep " $bvh1      " OUTCAR | head -$nkpt | sort -n -k 2 | tail -1 | awk '{print $2}'`     # 在spin1中不同的k点找到相同价带顶的能量，排序比较取最大值
+e2s1=`grep " $bcl1      " OUTCAR | head -$nkpt | sort -n -k 2 | head -1 | awk '{print $2}'`     # 在spin1中不同的k点找到相同导带底的能量，排序比较取最小值
+
+bgs1=$(echo "scale=5; $e2s1-($e1s1)" |bc)        # 相减得到带隙
+
+
+
+bcl2=$(grep -A$nbands " k-point     1" OUTCAR |tail -$(echo "$nbands - 1" | bc) | awk ' $3 < 0.1 {print $1} ' | head -n1 )   #spin2中的情况，区别只是后一半的k点
+bvh2=$(echo "$bcl2 - 1" | bc )
+
+e1s2=`grep " $bvh2      " OUTCAR | tail -$nkpt | sort -n -k 2 | tail -1 | awk '{print $2}'`
+e2s2=`grep " $bcl2      " OUTCAR | tail -$nkpt | sort -n -k 2 | head -1 | awk '{print $2}'`
+bgs2=$(echo "scale=5; $e2s2-($e1s2)" |bc)
+
+
+jieguo=$(echo "$bgs1 <= $bgs2" |bc)       # 由于if不能比较小数，所以需要用bc的方法 0.1《0.2 返回1  0.2《0.1返回0
+
+
+if [ $ispin -eq 1 ]; then
+     echo "HOMO: band:" $bvh1 " E=" $e1s1
+     echo "LUMO: band:" $bcl1 " E=" $e2s1
+     echo "band gap: " $bgs1
+
+elif [ $ispin -eq 2 ]; then
+     echo "spin up"
+     echo "HOMO: band:" $bvh1 " E=" $e1s1
+     echo "LUMO: band:" $bcl1 " E=" $e2s1
+     echo "band gap(up): " $bgs1
+     echo ""
+     echo "spin down"
+     echo "HOMO: band:" $bvh2 " E=" $e1s2
+     echo "LUMO: band:" $bcl2 " E=" $e2s2
+     echo "band gap(down): " $bgs2
+
+fi      
+
+
+#echo "HOMO: band:" $bvh " E=" $e1
+#echo "LUMO: band:" $bcl " E=" $e2
+#echo "band gap: " $bg
+
+
+
